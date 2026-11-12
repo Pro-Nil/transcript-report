@@ -1,0 +1,6 @@
+fastapi
+uvicorn[standard]
+httpx
+matplotlib
+fpdf2
+pytest
