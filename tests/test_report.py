@@ -112,3 +112,30 @@ def test_base_down():
     assert c.get("/report/x").status_code == 502
     assert "Cannot reach the base app" in c.get("/").text
     plugin_app.state.client = None
+
+
+def test_rule_inputs_accept_any_hundredth(base):
+    # step="0.05" made browsers refuse values like 0.92, so the form silently did nothing
+    plugin_app.state.client = base
+    c = TestClient(plugin_app)
+    pages = [c.get(f"/view/{r['recording_id']}").text for r in base.recordings()]
+    page = next(p for p in pages if "Flagging rules" in p)   # a finished recording (one mock recording is mid-processing)
+    assert 'step="0.05"' not in page and page.count('step="0.01"') == 2
+
+
+def test_added_time_is_readable():
+    from treport.app import _when
+    assert _when("2026-11-14T08:58:16.990721+00:00").startswith("14 Nov 2026") or _when(
+        "2026-11-14T08:58:16.990721+00:00").startswith("15 Nov 2026")
+    assert "T" not in _when("2026-11-14T08:58:16+00:00")
+    assert _when(None) == "" and _when("not a date") == "not a date"
+
+
+def test_empty_speakers_list_uses_turn_labels():
+    # the real base app returns speakers=[] when diarization is unavailable; turns say SPEAKER_UNASSIGNED
+    t = {"speakers": [], "segments": [{"speaker": "SPEAKER_UNASSIGNED", "start": 0.0, "end": 2.0,
+                                       "words": [{"word": "hi", "start": 0.1, "end": 0.4, "confidence": 0.9,
+                                                  "speaker": "SPEAKER_UNASSIGNED"}]}],
+         "words": [{"word": "hi", "start": 0.1, "end": 0.4, "confidence": 0.9, "speaker": "SPEAKER_UNASSIGNED"}]}
+    rows = stats.speakers(t)
+    assert len(rows) == 1 and rows[0]["speaker"] == "SPEAKER_UNASSIGNED" and rows[0]["share"] == 1.0

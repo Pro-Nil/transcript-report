@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import html
 import os
+from datetime import datetime
 from typing import Literal
 
 from fastapi import FastAPI, HTTPException, Query, Request
@@ -18,6 +19,17 @@ from fastapi.responses import HTMLResponse, JSONResponse, Response
 
 from . import __version__, charts, render, stats
 from .client import DEFAULT_BASE, BaseAPIError, BaseClient
+
+
+def _when(value) -> str:
+    """The base app's ISO timestamp (UTC) as local time, e.g. '14 Nov 2026, 14:29'; raw text if it does not parse."""
+    if not value:
+        return ""
+    try:
+        dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        return (dt.astimezone() if dt.tzinfo else dt).strftime("%d %b %Y, %H:%M").lstrip("0")
+    except ValueError:
+        return str(value)[:16]
 
 app = FastAPI(
     title="Transcript Report Generator",
@@ -115,9 +127,9 @@ def view(request: Request, recording_id: str, turn_avg_below: float = Query(0.60
   <a class="btn ghost" href="/report/{rid}?format=md&{q}">Download Markdown</a>
 </div>
 <form class="rules" method="get" aria-label="Flagging rules">
-  <label>Flag turns with average below <input name="turn_avg_below" type="number" step="0.05" min="0" max="1" value="{turn_avg_below}"></label>
+  <label>Flag turns with average below <input name="turn_avg_below" type="number" step="0.01" min="0" max="1" value="{turn_avg_below}"></label>
   <label>or with at least <input name="min_low_words" type="number" min="1" max="50" value="{min_low_words}"> words below
-  <input name="low_word_below" type="number" step="0.05" min="0" max="1" value="{low_word_below}"></label>
+  <input name="low_word_below" type="number" step="0.01" min="0" max="1" value="{low_word_below}"></label>
   <button class="btn ghost" type="submit">Update</button>
 </form>"""
     return _page(f"Report: {r['filename']}", tools + render.to_html_fragment(r, charts.all_charts(r)))
@@ -135,7 +147,7 @@ def index(request: Request):
                      f"<p>Set <code>BASE_API</code> to the base app's API (now <code>{e(c.base_url)}</code>).</p>")
     rows = "".join(
         f"<tr><td><a href='/view/{e(x['recording_id'])}'>{e(x.get('filename', x['recording_id']))}</a></td>"
-        f"<td>{stats.fmt_dur(float(x.get('duration') or 0))}</td><td class='nw'>{e(str(x.get('created_at', ''))[:16])}</td>"
+        f"<td>{stats.fmt_dur(float(x.get('duration') or 0))}</td><td class='nw'>{e(_when(x.get('created_at')))}</td>"
         f"<td class='nw'><a href='/report/{e(x['recording_id'])}?format=pdf'>PDF</a> · "
         f"<a href='/report/{e(x['recording_id'])}?format=md'>Markdown</a></td></tr>" for x in recs)
     body = f"""

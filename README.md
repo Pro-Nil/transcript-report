@@ -41,6 +41,23 @@ Command line:
 
 OpenAPI docs at `/docs`. Errors: 404 unknown recording, 409 still being transcribed, 502 base app unreachable.
 
+## Tested against the real base app
+
+14 Nov 2026, against Technologia Gang's repository at commit `7c15fb9` (`app/` backend, Windows, CPU,
+`WHISPER_MODEL=small`): a 69 s two-speaker recording was uploaded through their API and transcribed by their real
+pipeline (FFmpeg normalisation, faster-whisper, wav2vec2 alignment, calibration). Our plugin then produced the
+Markdown, PDF, HTML and JSON reports from their live `/api/v1/media`, `/transcriptions/{id}` and `/analytics/{id}`,
+and the recordings page and CLI worked against it. Checked:
+
+- a recording still being transcribed returns a clear "processing in progress" message (HTTP 409), not an error;
+- with no diarization their API returns `speakers: []` and labels every turn `SPEAKER_UNASSIGNED`; the report shows
+  one speaker;
+- with speaker timings (their engine's `diarization_rttm` option, standing in for NeMo, which on their side runs
+  from a Linux-only path) both speakers come out right: 5 and 4 turns, 71 words each, matching the script.
+
+Found and fixed on the way: the flagging-rule inputs only accepted multiples of 0.05, so a browser silently refused
+values like 0.92; the "Added" column showed raw UTC timestamps.
+
 ## Developing without the base app's speech pipeline
 
 `mock_base/` is a **mock** of the base API serving invented conversations in their exact schema
